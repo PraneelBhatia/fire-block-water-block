@@ -4,13 +4,10 @@ import { Direction } from '@fbwb/shared';
 // In production, server and client are on the same host.
 // In dev, client is on :3000 and server on :2567.
 const isDev = window.location.port === '3000';
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const SERVER_URL = isDev
-  ? 'ws://localhost:2567'
-  : `${wsProtocol}//${window.location.host}`;
-const HTTP_URL = isDev
   ? 'http://localhost:2567'
   : `${window.location.protocol}//${window.location.host}`;
+const HTTP_URL = SERVER_URL;
 
 export interface GameState {
   phase: string;
