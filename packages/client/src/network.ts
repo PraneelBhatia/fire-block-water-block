@@ -82,6 +82,21 @@ export class NetworkClient {
     this.room?.send('toggleFallOff', {});
   }
 
+  sendLocalMove(player: 'fire' | 'water', direction: string) {
+    this.room?.send('localMove', { player, direction });
+  }
+
+  async startLocal(): Promise<string> {
+    this.room = await this.client.create('game');
+    this.setupListeners();
+    this.room.send('startLocal', {});
+    return new Promise<string>((resolve) => {
+      this.room!.onMessage('welcome', (data: { roomCode: string }) => {
+        resolve(data.roomCode);
+      });
+    });
+  }
+
   getSessionId(): string | undefined {
     return this.room?.sessionId;
   }

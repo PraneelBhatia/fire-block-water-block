@@ -2,7 +2,7 @@ import { Element, BlockOrientation, TileType } from '@fbwb/shared';
 import { GameRenderer } from './renderer/scene.js';
 import { GridMesh } from './entities/gridMesh.js';
 import { BlockMesh } from './entities/blockMesh.js';
-import { setupInput } from './input.js';
+import { setupOnlineInput, setupLocalInput } from './input.js';
 import { NetworkClient, GameState } from './network.js';
 
 // --- Level names (kept client-side for UI display) ---
@@ -38,7 +38,87 @@ const lobbyDiv = document.getElementById('lobby')!;
 const hudDiv = document.getElementById('hud')!;
 const levelCompleteDiv = document.getElementById('level-complete')!;
 
-function buildLobbyUI() {
+let gameMode: 'local' | 'online' | null = null;
+
+function buildModeSelect() {
+  const container = document.createElement('div');
+  container.className = 'lobby-container';
+
+  // Title
+  const titleRow = document.createElement('div');
+  titleRow.className = 'lobby-title-row';
+  const fireIcon = document.createElement('span');
+  fireIcon.className = 'lobby-fire-icon';
+  fireIcon.textContent = '\u{1F525}';
+  titleRow.appendChild(fireIcon);
+  const titleFire = document.createElement('span');
+  titleFire.className = 'title-fire';
+  titleFire.textContent = 'FIRE BLOCK';
+  titleRow.appendChild(titleFire);
+  const titleAmp = document.createElement('span');
+  titleAmp.className = 'title-amp';
+  titleAmp.textContent = '&';
+  titleRow.appendChild(titleAmp);
+  const titleWater = document.createElement('span');
+  titleWater.className = 'title-water';
+  titleWater.textContent = 'WATER BLOCK';
+  titleRow.appendChild(titleWater);
+  const waterIcon = document.createElement('span');
+  waterIcon.className = 'lobby-water-icon';
+  waterIcon.textContent = '\u{1F4A7}';
+  titleRow.appendChild(waterIcon);
+  container.appendChild(titleRow);
+
+  const tagline = document.createElement('p');
+  tagline.className = 'lobby-tagline';
+  tagline.textContent = 'A cooperative puzzle adventure';
+  container.appendChild(tagline);
+
+  // Local Co-op button
+  const localBtn = document.createElement('button');
+  localBtn.className = 'btn-fire';
+  localBtn.style.width = '280px';
+  localBtn.style.marginBottom = '12px';
+  localBtn.textContent = 'Local Co-Op';
+  localBtn.addEventListener('click', async () => {
+    gameMode = 'local';
+    localBtn.disabled = true;
+    localBtn.textContent = 'Starting...';
+    await network.startLocal();
+    setupLocalInput((player, direction) => {
+      network.sendLocalMove(player, direction);
+    });
+    lobbyDiv.style.display = 'none';
+    hudDiv.style.display = 'flex';
+  });
+  container.appendChild(localBtn);
+
+  // Controls hint for local
+  const localHint = document.createElement('p');
+  localHint.style.cssText = 'color:#666;font-size:0.75rem;margin-bottom:16px;text-align:center;';
+  localHint.textContent = 'WASD = Fire Block  |  Arrow Keys = Water Block';
+  container.appendChild(localHint);
+
+  // Online Co-op button
+  const onlineBtn = document.createElement('button');
+  onlineBtn.className = 'btn-water';
+  onlineBtn.style.width = '280px';
+  onlineBtn.textContent = 'Online Co-Op';
+  onlineBtn.addEventListener('click', () => {
+    gameMode = 'online';
+    // Remove mode select, show online lobby
+    while (lobbyDiv.firstChild) lobbyDiv.removeChild(lobbyDiv.firstChild);
+    buildOnlineLobby();
+    setupOnlineInput((direction) => {
+      network.sendMove(direction);
+    });
+  });
+  container.appendChild(onlineBtn);
+
+  lobbyDiv.appendChild(container);
+}
+
+function buildOnlineLobby() {
   const container = document.createElement('div');
   container.className = 'lobby-container';
 
@@ -623,13 +703,8 @@ network.onStateChange = (state: GameState) => {
   }
 };
 
-// --- Input ---
-setupInput((direction) => {
-  network.sendMove(direction);
-});
-
 // --- Build UI ---
-buildLobbyUI();
+buildModeSelect();
 buildHUD();
 buildLevelComplete();
 

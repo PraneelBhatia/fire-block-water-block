@@ -80,6 +80,24 @@ export class GameRoom extends Room<GameStateSchema> {
       this.handleMove(client, data.direction as Direction);
     });
 
+    // Local co-op: one client controls both blocks
+    this.onMessage('localMove', (_client, data: { player: string; direction: string }) => {
+      this.handleLocalMove(data.player as 'fire' | 'water', data.direction as Direction);
+    });
+
+    // Local co-op: one client acts as both players
+    this.onMessage('startLocal', (client) => {
+      this.playerCount = 2;
+      this.gameState.player1.sessionId = client.sessionId;
+      this.gameState.player1.assignedElement = Element.Fire;
+      this.gameState.player1.connected = true;
+      this.gameState.player2.sessionId = client.sessionId;
+      this.gameState.player2.assignedElement = Element.Water;
+      this.gameState.player2.connected = true;
+      client.send('welcome', { roomCode: this.gameState.roomCode, element: 'both' });
+      this.loadLevel(1);
+    });
+
     this.onMessage('restart', () => {
       if (this.gameState.levelId > 0) {
         this.loadLevel(this.gameState.levelId);
@@ -131,17 +149,22 @@ export class GameRoom extends Room<GameStateSchema> {
     return null;
   }
 
+  handleLocalMove(player: 'fire' | 'water', direction: Direction) {
+    const element = player === 'fire' ? Element.Fire : Element.Water;
+    const block = player === 'fire' ? this.gameState.fireBlock : this.gameState.waterBlock;
+    this.processMove(block, element, direction);
+  }
+
   handleMove(client: Client, direction: Direction) {
-    const player = this.getPlayer(client.sessionId);
-    if (!player) return;
+    const p = this.getPlayer(client.sessionId);
+    if (!p) return;
+    const element = p.assignedElement as Element;
+    this.processMove(element === Element.Fire ? this.gameState.fireBlock : this.gameState.waterBlock, element, direction);
+  }
 
-    const element = player.assignedElement as Element;
-    const block = element === Element.Fire ? this.gameState.fireBlock : this.gameState.waterBlock;
-
-    // Skip if block is dead or game is not playing
+  private processMove(block: PlainBlock, element: Element, direction: Direction) {
     if (!block.alive || this.gameState.phase !== 'playing') return;
 
-    // Build a BlockState from the plain object for shared logic
     const blockState: BlockState = {
       position: { x: block.position.x, y: block.position.y },
       orientation: block.orientation as BlockOrientation,
@@ -149,75 +172,45 @@ export class GameRoom extends Room<GameStateSchema> {
       alive: block.alive,
     };
 
-    // Compute the roll
     const rolled = computeRoll(blockState.position, blockState.orientation, direction);
-
-    // Check bounds and empty tiles
-    const rolledBlock: BlockState = {
-      ...blockState,
-      position: rolled.position,
-      orientation: rolled.orientation,
-    };
+    const rolledBlock: BlockState = { ...blockState, position: rolled.position, orientation: rolled.orientation };
     const footprint = getFootprint(rolledBlock);
     const height = this.currentTiles.length;
     const width = this.currentTiles[0]?.length ?? 0;
 
-    // Check if block falls off the edge (out of bounds or empty tile)
     let fellOff = false;
     for (const cell of footprint) {
-      if (cell.x < 0 || cell.y < 0 || cell.x >= width || cell.y >= height) {
-        fellOff = true;
-        break;
-      }
-      if (this.currentTiles[cell.y][cell.x] === TileType.Empty) {
-        fellOff = true;
-        break;
-      }
+      if (cell.x < 0 || cell.y < 0 || cell.x >= width || cell.y >= height) { fellOff = true; break; }
+      if (this.currentTiles[cell.y][cell.x] === TileType.Empty) { fellOff = true; break; }
     }
 
     if (fellOff) {
       if (this.fallOffEdge) {
-        // Block falls off — kill and auto-restart
         block.position.x = rolled.position.x;
         block.position.y = rolled.position.y;
         block.orientation = rolled.orientation;
         block.alive = false;
         this.gameState.moveCount++;
         this.broadcast('state', this.gameState);
-        this.clock.setTimeout(() => {
-          this.loadLevel(this.gameState.levelId);
-        }, 2000);
+        this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
       }
-      // If fallOffEdge disabled, silently reject the move
       return;
     }
 
-    // Apply move
     block.position.x = rolled.position.x;
     block.position.y = rolled.position.y;
     block.orientation = rolled.orientation;
-
-    // Increment move count
     this.gameState.moveCount++;
 
-    // Check hazard
-    const updatedBlock: BlockState = {
-      ...blockState,
-      position: rolled.position,
-      orientation: rolled.orientation,
-    };
+    const updatedBlock: BlockState = { ...blockState, position: rolled.position, orientation: rolled.orientation };
     const fpTiles = getFootprintTiles(updatedBlock, this.currentTiles);
     if (checkHazard(updatedBlock, fpTiles)) {
       block.alive = false;
-      // Broadcast death immediately, then auto-restart after 2 seconds
       this.broadcast('state', this.gameState);
-      this.clock.setTimeout(() => {
-        this.loadLevel(this.gameState.levelId);
-      }, 2000);
+      this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
       return;
     }
 
-    // Check for switches
     for (const cell of footprint) {
       const key = `${cell.x},${cell.y}`;
       if (this.currentLevel?.switchEffects[key]) {
@@ -225,7 +218,6 @@ export class GameRoom extends Room<GameStateSchema> {
         const isMatchingSwitch =
           (element === Element.Fire && tileAtCell === TileType.SwitchFire) ||
           (element === Element.Water && tileAtCell === TileType.SwitchWater);
-
         if (isMatchingSwitch) {
           this.currentTiles = activateSwitch(this.currentTiles, this.currentLevel.switchEffects[key]);
           this.gameState.tilesJson = JSON.stringify(this.currentTiles);
@@ -233,14 +225,12 @@ export class GameRoom extends Room<GameStateSchema> {
       }
     }
 
-    // Check win condition
-    const fireBlock = this.buildBlockState(this.gameState.fireBlock, Element.Fire);
-    const waterBlock = this.buildBlockState(this.gameState.waterBlock, Element.Water);
-    if (checkWinCondition(fireBlock, waterBlock, this.currentTiles)) {
+    const fb = this.buildBlockState(this.gameState.fireBlock, Element.Fire);
+    const wb = this.buildBlockState(this.gameState.waterBlock, Element.Water);
+    if (checkWinCondition(fb, wb, this.currentTiles)) {
       this.gameState.phase = 'completed';
     }
 
-    // Broadcast updated state to all clients
     this.broadcast('state', this.gameState);
   }
 
