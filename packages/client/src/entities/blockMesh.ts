@@ -13,11 +13,59 @@ const BLOCK_STYLES: Record<Element, { color: number; emissive: number }> = {
   [Element.Water]: { color: 0x4fc3f7, emissive: 0x0066cc },
 };
 
+const ROLL_DURATION = 0.3; // seconds
+
+interface BlockPose {
+  position: { x: number; y: number };
+  orientation: BlockOrientation;
+}
+
+interface RollAnimation {
+  from: BlockPose;
+  to: BlockPose;
+  startTime: number;
+}
+
+/**
+ * Returns the world-space position and euler rotation for a given grid pose,
+ * matching the logic in setPositionImmediate.
+ */
+function poseToWorld(
+  renderer: GameRenderer,
+  pose: BlockPose,
+): { pos: THREE.Vector3; rot: THREE.Euler } {
+  const worldPos = renderer.gridToWorld(pose.position.x, pose.position.y);
+  switch (pose.orientation) {
+    case BlockOrientation.Standing:
+      return {
+        pos: new THREE.Vector3(worldPos.x, 0.9, worldPos.z),
+        rot: new THREE.Euler(0, 0, 0),
+      };
+    case BlockOrientation.LyingX:
+      return {
+        pos: new THREE.Vector3(worldPos.x + 0.5, 0.45, worldPos.z),
+        rot: new THREE.Euler(0, 0, Math.PI / 2),
+      };
+    case BlockOrientation.LyingY:
+      return {
+        pos: new THREE.Vector3(worldPos.x, 0.45, worldPos.z - 0.5),
+        rot: new THREE.Euler(Math.PI / 2, 0, 0),
+      };
+  }
+}
+
 export class BlockMesh {
   private mesh: THREE.Mesh;
   private renderer: GameRenderer;
   private particles: THREE.Points;
   private element: Element;
+
+  // Animation state
+  private currentAnimation: RollAnimation | null = null;
+  private moveQueue: Array<{ from: BlockPose; to: BlockPose }> = [];
+
+  // The settled pose — updated when an animation completes
+  private settledPose: BlockPose | null = null;
 
   constructor(renderer: GameRenderer, element: Element) {
     this.renderer = renderer;
@@ -48,30 +96,39 @@ export class BlockMesh {
     position: { x: number; y: number },
     orientation: BlockOrientation,
   ) {
-    // Reset rotation
-    this.mesh.rotation.set(0, 0, 0);
+    // Cancel any in-flight animation and queue
+    this.currentAnimation = null;
+    this.moveQueue = [];
 
-    const worldPos = this.renderer.gridToWorld(position.x, position.y);
+    const pose: BlockPose = { position, orientation };
+    this.settledPose = pose;
+    this._applyPose(pose);
+  }
 
-    switch (orientation) {
-      case BlockOrientation.Standing:
-        this.mesh.position.set(worldPos.x, 0.9, worldPos.z);
-        break;
+  /**
+   * Enqueue a roll from fromPos/fromOri to toPos/toOri.
+   * If nothing is currently animating, start immediately.
+   */
+  animateRoll(
+    fromPos: { x: number; y: number },
+    fromOri: BlockOrientation,
+    toPos: { x: number; y: number },
+    toOri: BlockOrientation,
+    now: number,
+  ) {
+    const from: BlockPose = { position: fromPos, orientation: fromOri };
+    const to: BlockPose = { position: toPos, orientation: toOri };
 
-      case BlockOrientation.LyingX:
-        // Block extends in the +x direction: anchor at (x,y), extends to (x+1,y)
-        // Center is offset by +0.5 in x, height is halved
-        this.mesh.rotation.z = Math.PI / 2;
-        this.mesh.position.set(worldPos.x + 0.5, 0.45, worldPos.z);
-        break;
-
-      case BlockOrientation.LyingY:
-        // Block extends in the +y direction (grid), which is -z in world space
-        // Center is offset by -0.5 in z, height is halved
-        this.mesh.rotation.x = Math.PI / 2;
-        this.mesh.position.set(worldPos.x, 0.45, worldPos.z - 0.5);
-        break;
+    if (this.currentAnimation === null) {
+      this._startAnimation(from, to, now);
+    } else {
+      this.moveQueue.push({ from, to });
     }
+  }
+
+  /** Returns true if there is an active animation or queued moves. */
+  isAnimating(): boolean {
+    return this.currentAnimation !== null || this.moveQueue.length > 0;
   }
 
   setVisible(visible: boolean) {
@@ -79,10 +136,64 @@ export class BlockMesh {
   }
 
   update(dt: number, time: number) {
+    // Drive rolling animation
+    if (this.currentAnimation !== null) {
+      const anim = this.currentAnimation;
+      const rawT = (time - anim.startTime) / ROLL_DURATION;
+      const t = Math.min(rawT, 1);
+
+      const fromWorld = poseToWorld(this.renderer, anim.from);
+      const toWorld = poseToWorld(this.renderer, anim.to);
+
+      // Lerp position
+      const px = fromWorld.pos.x + (toWorld.pos.x - fromWorld.pos.x) * t;
+      const pz = fromWorld.pos.z + (toWorld.pos.z - fromWorld.pos.z) * t;
+
+      // Arc: lerp the base Y then add a sine bump so the block rises mid-roll
+      const py = fromWorld.pos.y + (toWorld.pos.y - fromWorld.pos.y) * t
+        + Math.sin(t * Math.PI) * 0.3;
+
+      this.mesh.position.set(px, py, pz);
+
+      // Slerp rotation via quaternions
+      const qFrom = new THREE.Quaternion().setFromEuler(fromWorld.rot);
+      const qTo = new THREE.Quaternion().setFromEuler(toWorld.rot);
+      const q = qFrom.clone().slerp(qTo, t);
+      this.mesh.quaternion.copy(q);
+
+      if (t >= 1) {
+        // Snap to exact final state
+        this._applyPose(anim.to);
+        this.settledPose = anim.to;
+        this.currentAnimation = null;
+
+        // Start next queued move if any
+        if (this.moveQueue.length > 0) {
+          const next = this.moveQueue.shift()!;
+          this._startAnimation(next.from, next.to, time);
+        }
+      }
+    }
+
+    // Update particle effects
     if (this.element === Element.Fire) {
       updateFireParticles(this.particles, dt);
     } else {
       updateWaterParticles(this.particles, time);
     }
+  }
+
+  // ---- private helpers ----
+
+  private _startAnimation(from: BlockPose, to: BlockPose, now: number) {
+    this.currentAnimation = { from, to, startTime: now };
+    // Immediately place mesh at the from pose so there's no flicker
+    this._applyPose(from);
+  }
+
+  private _applyPose(pose: BlockPose) {
+    const { pos, rot } = poseToWorld(this.renderer, pose);
+    this.mesh.position.copy(pos);
+    this.mesh.rotation.copy(rot);
   }
 }

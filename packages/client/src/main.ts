@@ -320,6 +320,16 @@ function hideLevelSelect() {
 let currentPhase = 'waiting';
 let currentLevelId = 1;
 
+// Track the last server-authoritative pose for each block so we can
+// detect changes and feed them into the rolling animation.
+interface TrackedPose {
+  x: number;
+  y: number;
+  orientation: BlockOrientation;
+}
+let lastFirePose: TrackedPose | null = null;
+let lastWaterPose: TrackedPose | null = null;
+
 network.onStateChange = (state: GameState) => {
   // Phase transitions
   if (state.phase !== currentPhase) {
@@ -350,23 +360,68 @@ network.onStateChange = (state: GameState) => {
   // Update fire block
   if (state.fireBlock) {
     fireBlock.setVisible(state.fireBlock.alive);
-    fireBlock.setPositionImmediate(
-      { x: state.fireBlock.position.x, y: state.fireBlock.position.y },
-      state.fireBlock.orientation as BlockOrientation,
-    );
+    const newFireOri = state.fireBlock.orientation as BlockOrientation;
+    const newFireX = state.fireBlock.position.x;
+    const newFireY = state.fireBlock.position.y;
+
+    if (lastFirePose === null) {
+      // First time — snap without animation
+      fireBlock.setPositionImmediate({ x: newFireX, y: newFireY }, newFireOri);
+    } else if (
+      newFireX !== lastFirePose.x ||
+      newFireY !== lastFirePose.y ||
+      newFireOri !== lastFirePose.orientation
+    ) {
+      // Position or orientation changed — animate the roll
+      const now = performance.now() / 1000;
+      fireBlock.animateRoll(
+        { x: lastFirePose.x, y: lastFirePose.y },
+        lastFirePose.orientation,
+        { x: newFireX, y: newFireY },
+        newFireOri,
+        now,
+      );
+    }
+
+    lastFirePose = { x: newFireX, y: newFireY, orientation: newFireOri };
   }
 
   // Update water block
   if (state.waterBlock) {
     waterBlock.setVisible(state.waterBlock.alive);
-    waterBlock.setPositionImmediate(
-      { x: state.waterBlock.position.x, y: state.waterBlock.position.y },
-      state.waterBlock.orientation as BlockOrientation,
-    );
+    const newWaterOri = state.waterBlock.orientation as BlockOrientation;
+    const newWaterX = state.waterBlock.position.x;
+    const newWaterY = state.waterBlock.position.y;
+
+    if (lastWaterPose === null) {
+      // First time — snap without animation
+      waterBlock.setPositionImmediate({ x: newWaterX, y: newWaterY }, newWaterOri);
+    } else if (
+      newWaterX !== lastWaterPose.x ||
+      newWaterY !== lastWaterPose.y ||
+      newWaterOri !== lastWaterPose.orientation
+    ) {
+      // Position or orientation changed — animate the roll
+      const now = performance.now() / 1000;
+      waterBlock.animateRoll(
+        { x: lastWaterPose.x, y: lastWaterPose.y },
+        lastWaterPose.orientation,
+        { x: newWaterX, y: newWaterY },
+        newWaterOri,
+        now,
+      );
+    }
+
+    lastWaterPose = { x: newWaterX, y: newWaterY, orientation: newWaterOri };
   }
 
-  // Track current level
-  if (state.levelId) {
+  // Track current level; reset poses on level change so the new start
+  // position snaps rather than animating from the old level's position.
+  if (state.levelId && state.levelId !== currentLevelId) {
+    currentLevelId = state.levelId;
+    lastFirePose = null;
+    lastWaterPose = null;
+  } else if (state.levelId) {
     currentLevelId = state.levelId;
   }
 
