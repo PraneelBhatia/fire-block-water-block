@@ -5,6 +5,20 @@ import { BlockMesh } from './entities/blockMesh.js';
 import { setupInput } from './input.js';
 import { NetworkClient, GameState } from './network.js';
 
+// --- Level names (kept client-side for UI display) ---
+const LEVEL_NAMES: Record<number, string> = {
+  1: 'First Steps',
+  2: 'Hot & Cold',
+  3: 'Open Sesame',
+  4: 'Give & Take',
+  5: 'Watch Your Step',
+  6: 'Flip the Script',
+  7: 'One at a Time',
+  8: 'Fork in the Road',
+  9: 'No Safe Ground',
+  10: 'The Gauntlet',
+};
+
 // --- Renderer ---
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
 const renderer = new GameRenderer(canvas);
@@ -25,61 +39,96 @@ const hudDiv = document.getElementById('hud')!;
 const levelCompleteDiv = document.getElementById('level-complete')!;
 
 function buildLobbyUI() {
-  // Container styling
   const container = document.createElement('div');
-  container.style.cssText =
-    'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-    'height:100%;gap:16px;font-family:system-ui,sans-serif;';
+  container.className = 'lobby-container';
 
-  // Title
-  const title = document.createElement('h1');
-  title.textContent = 'Fire Block & Water Block';
-  title.style.cssText = 'color:#ff6b35;font-size:2.5rem;text-shadow:0 0 20px rgba(255,107,53,0.5);';
-  container.appendChild(title);
+  // --- Title row with decorative icons ---
+  const titleRow = document.createElement('div');
+  titleRow.className = 'lobby-title-row';
 
-  // Subtitle
-  const subtitle = document.createElement('p');
-  subtitle.textContent = 'A cooperative puzzle game for two players';
-  subtitle.style.cssText = 'color:#aaa;font-size:1.1rem;margin-bottom:16px;';
-  container.appendChild(subtitle);
+  const fireIcon = document.createElement('span');
+  fireIcon.className = 'lobby-fire-icon';
+  fireIcon.setAttribute('aria-hidden', 'true');
+  fireIcon.textContent = '\u{1F525}';
+  titleRow.appendChild(fireIcon);
 
-  // Room code display (hidden initially)
-  const roomCodeDisplay = document.createElement('div');
-  roomCodeDisplay.id = 'room-code-display';
-  roomCodeDisplay.style.cssText =
-    'display:none;background:#222;padding:16px 32px;border-radius:8px;' +
-    'border:2px solid #ff6b35;text-align:center;';
-  container.appendChild(roomCodeDisplay);
+  const titleFire = document.createElement('span');
+  titleFire.className = 'title-fire';
+  titleFire.textContent = 'FIRE BLOCK';
+  titleRow.appendChild(titleFire);
 
-  // Create Room button
+  const titleAmp = document.createElement('span');
+  titleAmp.className = 'title-amp';
+  titleAmp.textContent = '&';
+  titleRow.appendChild(titleAmp);
+
+  const titleWater = document.createElement('span');
+  titleWater.className = 'title-water';
+  titleWater.textContent = 'WATER BLOCK';
+  titleRow.appendChild(titleWater);
+
+  const waterIcon = document.createElement('span');
+  waterIcon.className = 'lobby-water-icon';
+  waterIcon.setAttribute('aria-hidden', 'true');
+  waterIcon.textContent = '\u{1F4A7}';
+  titleRow.appendChild(waterIcon);
+
+  container.appendChild(titleRow);
+
+  // --- Tagline ---
+  const tagline = document.createElement('p');
+  tagline.className = 'lobby-tagline';
+  tagline.textContent = 'A cooperative puzzle adventure';
+  container.appendChild(tagline);
+
+  // --- Room code display (hidden initially) ---
+  const roomCodeBox = document.createElement('div');
+  roomCodeBox.className = 'lobby-room-code-box';
+  container.appendChild(roomCodeBox);
+
+  // --- Create Room button ---
   const createBtn = document.createElement('button');
+  createBtn.className = 'btn-fire';
   createBtn.textContent = 'Create Room';
-  createBtn.style.cssText = buttonStyle('#ff6b35');
   createBtn.addEventListener('click', async () => {
     createBtn.disabled = true;
     createBtn.textContent = 'Creating...';
     try {
       const code = await network.createRoom();
-      roomCodeDisplay.style.display = 'block';
+      roomCodeBox.style.display = 'block';
 
-      // Clear and rebuild room code display with DOM methods
-      while (roomCodeDisplay.firstChild) {
-        roomCodeDisplay.removeChild(roomCodeDisplay.firstChild);
+      // Clear existing children
+      while (roomCodeBox.firstChild) {
+        roomCodeBox.removeChild(roomCodeBox.firstChild);
       }
+
       const label = document.createElement('div');
-      label.textContent = 'Room Code:';
-      label.style.cssText = 'color:#aaa;font-size:0.9rem;margin-bottom:4px;';
-      roomCodeDisplay.appendChild(label);
+      label.className = 'lobby-room-code-label';
+      label.textContent = 'Room Code';
+      roomCodeBox.appendChild(label);
 
       const codeEl = document.createElement('div');
+      codeEl.className = 'lobby-room-code-value';
       codeEl.textContent = code;
-      codeEl.style.cssText = 'color:#ff6b35;font-size:2rem;font-weight:bold;letter-spacing:4px;';
-      roomCodeDisplay.appendChild(codeEl);
+      codeEl.addEventListener('click', () => {
+        navigator.clipboard.writeText(code).then(() => {
+          copyHint.textContent = 'Copied!';
+          setTimeout(() => {
+            copyHint.textContent = 'Click to copy';
+          }, 1500);
+        });
+      });
+      roomCodeBox.appendChild(codeEl);
+
+      const copyHint = document.createElement('div');
+      copyHint.className = 'lobby-room-code-copy-hint';
+      copyHint.textContent = 'Click to copy';
+      roomCodeBox.appendChild(copyHint);
 
       const waitMsg = document.createElement('div');
-      waitMsg.textContent = 'Waiting for player 2...';
-      waitMsg.style.cssText = 'color:#aaa;font-size:0.85rem;margin-top:8px;';
-      roomCodeDisplay.appendChild(waitMsg);
+      waitMsg.className = 'lobby-waiting';
+      waitMsg.textContent = 'Waiting for partner';
+      roomCodeBox.appendChild(waitMsg);
 
       createBtn.textContent = 'Room Created';
     } catch (err) {
@@ -90,49 +139,40 @@ function buildLobbyUI() {
   });
   container.appendChild(createBtn);
 
-  // Divider
+  // --- Divider ---
   const divider = document.createElement('div');
-  divider.style.cssText =
-    'display:flex;align-items:center;gap:12px;width:260px;margin:4px 0;';
+  divider.className = 'lobby-divider';
   const line1 = document.createElement('hr');
-  line1.style.cssText = 'flex:1;border:none;border-top:1px solid #444;';
+  line1.className = 'lobby-divider-line';
   const orText = document.createElement('span');
+  orText.className = 'lobby-divider-text';
   orText.textContent = 'or';
-  orText.style.cssText = 'color:#666;font-size:0.9rem;';
   const line2 = document.createElement('hr');
-  line2.style.cssText = 'flex:1;border:none;border-top:1px solid #444;';
+  line2.className = 'lobby-divider-line';
   divider.appendChild(line1);
   divider.appendChild(orText);
   divider.appendChild(line2);
   container.appendChild(divider);
 
-  // Join by code
+  // --- Join row ---
   const joinRow = document.createElement('div');
-  joinRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  joinRow.className = 'lobby-join-row';
 
   const codeInput = document.createElement('input');
   codeInput.type = 'text';
+  codeInput.className = 'lobby-input';
   codeInput.placeholder = 'Enter room code';
-  codeInput.style.cssText =
-    'padding:10px 14px;border-radius:6px;border:2px solid #444;background:#222;' +
-    'color:#eee;font-size:1rem;text-transform:uppercase;width:180px;outline:none;';
-  codeInput.addEventListener('focus', () => {
-    codeInput.style.borderColor = '#4fc3f7';
-  });
-  codeInput.addEventListener('blur', () => {
-    codeInput.style.borderColor = '#444';
-  });
   joinRow.appendChild(codeInput);
 
   const joinBtn = document.createElement('button');
+  joinBtn.className = 'btn-water';
   joinBtn.textContent = 'Join';
-  joinBtn.style.cssText = buttonStyle('#4fc3f7');
   joinRow.appendChild(joinBtn);
   container.appendChild(joinRow);
 
-  // Error display
+  // --- Error display ---
   const errorMsg = document.createElement('div');
-  errorMsg.style.cssText = 'color:#ff4444;font-size:0.9rem;min-height:1.2em;';
+  errorMsg.className = 'lobby-error';
   container.appendChild(errorMsg);
 
   joinBtn.addEventListener('click', async () => {
@@ -160,73 +200,104 @@ function buildLobbyUI() {
   lobbyDiv.appendChild(container);
 }
 
-function buttonStyle(color: string): string {
-  return (
-    `padding:10px 24px;border-radius:6px;border:2px solid ${color};` +
-    `background:transparent;color:${color};font-size:1rem;font-weight:bold;` +
-    `cursor:pointer;transition:all 0.2s;`
-  );
-}
-
 // --- HUD ---
 let hudMoveCounter: HTMLElement;
 let hudRoomCode: HTMLElement;
+let hudLevelName: HTMLElement;
+let hudConnectionDot: HTMLElement;
 
 function buildHUD() {
-  hudDiv.style.cssText = 'position:absolute;top:16px;left:16px;display:flex;flex-direction:column;gap:8px;';
+  hudDiv.className = 'hud-panel';
 
-  // Room code
-  hudRoomCode = document.createElement('div');
-  hudRoomCode.style.cssText =
-    'background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:6px;' +
-    'color:#aaa;font-size:0.85rem;';
-  hudDiv.appendChild(hudRoomCode);
+  // Connection & Room code row
+  const roomItem = document.createElement('div');
+  roomItem.className = 'hud-item';
+
+  hudConnectionDot = document.createElement('span');
+  hudConnectionDot.className = 'hud-connection-dot connected';
+  roomItem.appendChild(hudConnectionDot);
+
+  hudRoomCode = document.createElement('span');
+  hudRoomCode.className = 'hud-room-code';
+  roomItem.appendChild(hudRoomCode);
+  hudDiv.appendChild(roomItem);
+
+  // Level name
+  const levelItem = document.createElement('div');
+  levelItem.className = 'hud-item';
+  const levelIcon = document.createElement('span');
+  levelIcon.className = 'hud-icon';
+  levelIcon.textContent = '\u{1F3AE}';
+  levelItem.appendChild(levelIcon);
+  hudLevelName = document.createElement('span');
+  hudLevelName.className = 'hud-value';
+  hudLevelName.style.fontSize = '0.8rem';
+  levelItem.appendChild(hudLevelName);
+  hudDiv.appendChild(levelItem);
 
   // Move counter
-  hudMoveCounter = document.createElement('div');
-  hudMoveCounter.style.cssText =
-    'background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:6px;' +
-    'color:#eee;font-size:1rem;';
-  hudDiv.appendChild(hudMoveCounter);
+  const moveItem = document.createElement('div');
+  moveItem.className = 'hud-item';
+  const moveLabel = document.createElement('span');
+  moveLabel.className = 'hud-label';
+  moveLabel.textContent = 'Moves';
+  moveItem.appendChild(moveLabel);
+  hudMoveCounter = document.createElement('span');
+  hudMoveCounter.className = 'hud-value';
+  moveItem.appendChild(hudMoveCounter);
+  hudDiv.appendChild(moveItem);
 
   // Level select button
   const levelSelectBtn = document.createElement('button');
+  levelSelectBtn.className = 'hud-btn-levels';
   levelSelectBtn.textContent = 'Levels';
-  levelSelectBtn.style.cssText =
-    'background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:6px;' +
-    'color:#ff6b35;font-size:0.9rem;border:1px solid #ff6b35;cursor:pointer;' +
-    'font-family:system-ui,sans-serif;';
   levelSelectBtn.addEventListener('click', () => {
     showLevelSelect();
   });
   hudDiv.appendChild(levelSelectBtn);
 }
 
+// --- Level Complete ---
+let lcMovesValue: HTMLElement;
+
 function buildLevelComplete() {
-  levelCompleteDiv.style.cssText =
-    'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
-    'text-align:center;display:none;';
+  levelCompleteDiv.className = 'lc-backdrop';
 
+  const panel = document.createElement('div');
+  panel.className = 'lc-panel';
+
+  // Star icon
+  const star = document.createElement('div');
+  star.className = 'lc-star';
+  star.textContent = '\u{2B50}';
+  panel.appendChild(star);
+
+  // Heading
   const heading = document.createElement('h2');
+  heading.className = 'lc-heading';
   heading.textContent = 'LEVEL COMPLETE!';
-  heading.style.cssText =
-    'color:#4caf50;font-size:3rem;text-shadow:0 0 30px rgba(76,175,80,0.5);margin-bottom:16px;';
-  levelCompleteDiv.appendChild(heading);
+  panel.appendChild(heading);
 
+  // Moves summary
+  const movesDiv = document.createElement('div');
+  movesDiv.className = 'lc-moves';
+  const movesLabel = document.createTextNode('Total moves: ');
+  movesDiv.appendChild(movesLabel);
+  lcMovesValue = document.createElement('span');
+  lcMovesValue.className = 'lc-moves-value';
+  lcMovesValue.textContent = '0';
+  movesDiv.appendChild(lcMovesValue);
+  panel.appendChild(movesDiv);
+
+  // Button row
   const btnRow = document.createElement('div');
-  btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;margin-bottom:16px;';
-
-  const restartBtn = document.createElement('button');
-  restartBtn.textContent = 'Play Again';
-  restartBtn.style.cssText = buttonStyle('#4caf50');
-  restartBtn.addEventListener('click', () => {
-    network.sendRestart();
-  });
-  btnRow.appendChild(restartBtn);
+  btnRow.className = 'lc-btn-row';
 
   const nextLevelBtn = document.createElement('button');
+  nextLevelBtn.className = 'btn-fire';
   nextLevelBtn.textContent = 'Next Level';
-  nextLevelBtn.style.cssText = buttonStyle('#ff6b35');
+  nextLevelBtn.style.fontSize = '0.95rem';
+  nextLevelBtn.style.padding = '12px 28px';
   nextLevelBtn.addEventListener('click', () => {
     const nextId = currentLevelId + 1;
     if (nextId <= 10) {
@@ -235,15 +306,26 @@ function buildLevelComplete() {
   });
   btnRow.appendChild(nextLevelBtn);
 
-  levelCompleteDiv.appendChild(btnRow);
+  const restartBtn = document.createElement('button');
+  restartBtn.className = 'btn-secondary';
+  restartBtn.textContent = 'Play Again';
+  restartBtn.addEventListener('click', () => {
+    network.sendRestart();
+  });
+  btnRow.appendChild(restartBtn);
 
-  const selectBtn = document.createElement('button');
-  selectBtn.textContent = 'Level Select';
-  selectBtn.style.cssText = buttonStyle('#aaa');
-  selectBtn.addEventListener('click', () => {
+  panel.appendChild(btnRow);
+
+  // Level select text link
+  const selectLink = document.createElement('button');
+  selectLink.className = 'btn-text-link';
+  selectLink.textContent = 'Level Select';
+  selectLink.addEventListener('click', () => {
     showLevelSelect();
   });
-  levelCompleteDiv.appendChild(selectBtn);
+  panel.appendChild(selectLink);
+
+  levelCompleteDiv.appendChild(panel);
 }
 
 // --- Level Select UI ---
@@ -252,55 +334,57 @@ let levelSelectDiv: HTMLDivElement | null = null;
 function showLevelSelect() {
   if (levelSelectDiv) {
     levelSelectDiv.style.display = 'flex';
+    // Update current level highlight
+    updateLevelSelectHighlight();
     return;
   }
 
   levelSelectDiv = document.createElement('div');
-  levelSelectDiv.style.cssText =
-    'position:absolute;top:0;left:0;width:100%;height:100%;' +
-    'display:flex;align-items:center;justify-content:center;' +
-    'background:rgba(0,0,0,0.85);z-index:100;';
+  levelSelectDiv.className = 'ls-backdrop';
 
   const panel = document.createElement('div');
-  panel.style.cssText =
-    'background:#1a1a2e;border:2px solid #444;border-radius:12px;' +
-    'padding:32px;text-align:center;';
+  panel.className = 'ls-panel';
 
   const title = document.createElement('h2');
+  title.className = 'ls-title';
   title.textContent = 'Select Level';
-  title.style.cssText = 'color:#eee;font-size:1.8rem;margin-bottom:20px;font-family:system-ui,sans-serif;';
   panel.appendChild(title);
 
   const grid = document.createElement('div');
-  grid.style.cssText =
-    'display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;';
+  grid.className = 'ls-grid';
 
   for (let i = 1; i <= 10; i++) {
+    const btnWrapper = document.createElement('div');
+    btnWrapper.style.position = 'relative';
+    btnWrapper.style.marginBottom = '18px';
+
     const btn = document.createElement('button');
+    btn.className = 'ls-btn';
+    btn.dataset.levelId = String(i);
+    if (i === currentLevelId) {
+      btn.classList.add('current');
+    }
     btn.textContent = String(i);
-    btn.style.cssText =
-      'width:56px;height:56px;border-radius:8px;border:2px solid #ff6b35;' +
-      'background:transparent;color:#ff6b35;font-size:1.3rem;font-weight:bold;' +
-      'cursor:pointer;font-family:system-ui,sans-serif;transition:all 0.2s;';
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = '#ff6b35';
-      btn.style.color = '#fff';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'transparent';
-      btn.style.color = '#ff6b35';
-    });
+
+    // Level name tooltip
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'ls-btn-name';
+    nameLabel.textContent = LEVEL_NAMES[i] || '';
+    btn.appendChild(nameLabel);
+
     btn.addEventListener('click', () => {
       network.sendSelectLevel(i);
       hideLevelSelect();
     });
-    grid.appendChild(btn);
+
+    btnWrapper.appendChild(btn);
+    grid.appendChild(btnWrapper);
   }
   panel.appendChild(grid);
 
   const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn-secondary';
   closeBtn.textContent = 'Close';
-  closeBtn.style.cssText = buttonStyle('#aaa');
   closeBtn.addEventListener('click', () => {
     hideLevelSelect();
   });
@@ -310,10 +394,58 @@ function showLevelSelect() {
   document.body.appendChild(levelSelectDiv);
 }
 
+function updateLevelSelectHighlight() {
+  if (!levelSelectDiv) return;
+  const buttons = levelSelectDiv.querySelectorAll('.ls-btn');
+  buttons.forEach((btn) => {
+    const el = btn as HTMLElement;
+    if (el.dataset.levelId === String(currentLevelId)) {
+      el.classList.add('current');
+    } else {
+      el.classList.remove('current');
+    }
+  });
+}
+
 function hideLevelSelect() {
   if (levelSelectDiv) {
     levelSelectDiv.style.display = 'none';
   }
+}
+
+// --- Block Death Feedback ---
+let deathOverlayTimeout: ReturnType<typeof setTimeout> | null = null;
+let lastFireAlive = true;
+let lastWaterAlive = true;
+
+function showDeathOverlay() {
+  // Remove existing overlay if present
+  const existing = document.getElementById('death-overlay');
+  if (existing) {
+    existing.remove();
+  }
+  if (deathOverlayTimeout) {
+    clearTimeout(deathOverlayTimeout);
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'death-overlay';
+  overlay.className = 'death-overlay';
+
+  const text = document.createElement('div');
+  text.className = 'death-overlay-text';
+  text.textContent = 'Block Destroyed!';
+  overlay.appendChild(text);
+
+  const uiOverlay = document.getElementById('ui-overlay');
+  if (uiOverlay) {
+    uiOverlay.appendChild(overlay);
+  }
+
+  deathOverlayTimeout = setTimeout(() => {
+    overlay.remove();
+    deathOverlayTimeout = null;
+  }, 2000);
 }
 
 // --- State sync ---
@@ -341,7 +473,7 @@ network.onStateChange = (state: GameState) => {
     }
 
     if (currentPhase === 'completed') {
-      levelCompleteDiv.style.display = 'block';
+      levelCompleteDiv.style.display = 'flex';
     } else {
       levelCompleteDiv.style.display = 'none';
     }
@@ -360,6 +492,13 @@ network.onStateChange = (state: GameState) => {
   // Update fire block
   if (state.fireBlock) {
     fireBlock.setVisible(state.fireBlock.alive);
+
+    // Detect death
+    if (!state.fireBlock.alive && lastFireAlive) {
+      showDeathOverlay();
+    }
+    lastFireAlive = state.fireBlock.alive;
+
     const newFireOri = state.fireBlock.orientation as BlockOrientation;
     const newFireX = state.fireBlock.position.x;
     const newFireY = state.fireBlock.position.y;
@@ -389,6 +528,13 @@ network.onStateChange = (state: GameState) => {
   // Update water block
   if (state.waterBlock) {
     waterBlock.setVisible(state.waterBlock.alive);
+
+    // Detect death
+    if (!state.waterBlock.alive && lastWaterAlive) {
+      showDeathOverlay();
+    }
+    lastWaterAlive = state.waterBlock.alive;
+
     const newWaterOri = state.waterBlock.orientation as BlockOrientation;
     const newWaterX = state.waterBlock.position.x;
     const newWaterY = state.waterBlock.position.y;
@@ -421,6 +567,9 @@ network.onStateChange = (state: GameState) => {
     currentLevelId = state.levelId;
     lastFirePose = null;
     lastWaterPose = null;
+    // Reset alive trackers on level change
+    lastFireAlive = true;
+    lastWaterAlive = true;
   } else if (state.levelId) {
     currentLevelId = state.levelId;
   }
@@ -432,10 +581,18 @@ network.onStateChange = (state: GameState) => {
 
   // Update HUD
   if (hudMoveCounter) {
-    hudMoveCounter.textContent = 'Moves: ' + state.moveCount;
+    hudMoveCounter.textContent = String(state.moveCount);
   }
   if (hudRoomCode && state.roomCode) {
-    hudRoomCode.textContent = 'Room: ' + state.roomCode;
+    hudRoomCode.textContent = 'Room ' + state.roomCode;
+  }
+  if (hudLevelName) {
+    const name = LEVEL_NAMES[currentLevelId];
+    hudLevelName.textContent = name ? name : 'Level ' + currentLevelId;
+  }
+  // Update level complete moves
+  if (lcMovesValue) {
+    lcMovesValue.textContent = String(state.moveCount);
   }
 };
 
