@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { Element, BlockOrientation } from '@fbwb/shared';
 import type { GameRenderer } from '../renderer/scene.js';
+import {
+  createFireParticles,
+  createWaterParticles,
+  updateFireParticles,
+  updateWaterParticles,
+} from './effects.js';
 
 const BLOCK_STYLES: Record<Element, { color: number; emissive: number }> = {
   [Element.Fire]:  { color: 0xff6b35, emissive: 0xff2200 },
@@ -10,9 +16,12 @@ const BLOCK_STYLES: Record<Element, { color: number; emissive: number }> = {
 export class BlockMesh {
   private mesh: THREE.Mesh;
   private renderer: GameRenderer;
+  private particles: THREE.Points;
+  private element: Element;
 
   constructor(renderer: GameRenderer, element: Element) {
     this.renderer = renderer;
+    this.element = element;
 
     const style = BLOCK_STYLES[element];
     const geometry = new THREE.BoxGeometry(0.9, 1.8, 0.9);
@@ -26,6 +35,13 @@ export class BlockMesh {
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     renderer.scene.add(this.mesh);
+
+    // Create element-specific particles attached to the mesh
+    if (element === Element.Fire) {
+      this.particles = createFireParticles(this.mesh);
+    } else {
+      this.particles = createWaterParticles(this.mesh);
+    }
   }
 
   setPositionImmediate(
@@ -60,5 +76,13 @@ export class BlockMesh {
 
   setVisible(visible: boolean) {
     this.mesh.visible = visible;
+  }
+
+  update(dt: number, time: number) {
+    if (this.element === Element.Fire) {
+      updateFireParticles(this.particles, dt);
+    } else {
+      updateWaterParticles(this.particles, time);
+    }
   }
 }

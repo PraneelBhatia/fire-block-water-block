@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TileType } from '@fbwb/shared';
 import type { GameRenderer } from '../renderer/scene.js';
+import { lavaTilePulse, waterTileShimmer } from './effects.js';
 
 const TILE_COLORS: Partial<Record<TileType, { color: number; emissive?: number }>> = {
   [TileType.Stone]:      { color: 0x666677 },
@@ -17,6 +18,8 @@ const TILE_COLORS: Partial<Record<TileType, { color: number; emissive?: number }
 export class GridMesh {
   private group: THREE.Group;
   private renderer: GameRenderer;
+  private lavaMaterials: THREE.MeshStandardMaterial[] = [];
+  private waterMaterials: THREE.MeshStandardMaterial[] = [];
 
   constructor(renderer: GameRenderer) {
     this.renderer = renderer;
@@ -36,6 +39,8 @@ export class GridMesh {
         }
       }
     }
+    this.lavaMaterials = [];
+    this.waterMaterials = [];
 
     for (let y = 0; y < tiles.length; y++) {
       const row = tiles[y];
@@ -53,6 +58,13 @@ export class GridMesh {
           emissiveIntensity: tileConfig.emissive ? 0.3 : 0,
         });
 
+        // Track lava and water tile materials for animation
+        if (tileType === TileType.Lava) {
+          this.lavaMaterials.push(material);
+        } else if (tileType === TileType.Water) {
+          this.waterMaterials.push(material);
+        }
+
         const mesh = new THREE.Mesh(geometry, material);
         const worldPos = this.renderer.gridToWorld(x, y);
         mesh.position.set(worldPos.x, -0.1, worldPos.z);
@@ -64,5 +76,14 @@ export class GridMesh {
 
   updateTiles(tiles: TileType[][]) {
     this.buildFromTiles(tiles);
+  }
+
+  update(time: number) {
+    for (const mat of this.lavaMaterials) {
+      lavaTilePulse(mat, time);
+    }
+    for (const mat of this.waterMaterials) {
+      waterTileShimmer(mat, time);
+    }
   }
 }

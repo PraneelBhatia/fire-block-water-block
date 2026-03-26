@@ -188,6 +188,18 @@ function buildHUD() {
     'background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:6px;' +
     'color:#eee;font-size:1rem;';
   hudDiv.appendChild(hudMoveCounter);
+
+  // Level select button
+  const levelSelectBtn = document.createElement('button');
+  levelSelectBtn.textContent = 'Levels';
+  levelSelectBtn.style.cssText =
+    'background:rgba(0,0,0,0.6);padding:8px 14px;border-radius:6px;' +
+    'color:#ff6b35;font-size:0.9rem;border:1px solid #ff6b35;cursor:pointer;' +
+    'font-family:system-ui,sans-serif;';
+  levelSelectBtn.addEventListener('click', () => {
+    showLevelSelect();
+  });
+  hudDiv.appendChild(levelSelectBtn);
 }
 
 function buildLevelComplete() {
@@ -201,17 +213,112 @@ function buildLevelComplete() {
     'color:#4caf50;font-size:3rem;text-shadow:0 0 30px rgba(76,175,80,0.5);margin-bottom:16px;';
   levelCompleteDiv.appendChild(heading);
 
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:12px;justify-content:center;margin-bottom:16px;';
+
   const restartBtn = document.createElement('button');
   restartBtn.textContent = 'Play Again';
   restartBtn.style.cssText = buttonStyle('#4caf50');
   restartBtn.addEventListener('click', () => {
     network.sendRestart();
   });
-  levelCompleteDiv.appendChild(restartBtn);
+  btnRow.appendChild(restartBtn);
+
+  const nextLevelBtn = document.createElement('button');
+  nextLevelBtn.textContent = 'Next Level';
+  nextLevelBtn.style.cssText = buttonStyle('#ff6b35');
+  nextLevelBtn.addEventListener('click', () => {
+    const nextId = currentLevelId + 1;
+    if (nextId <= 10) {
+      network.sendSelectLevel(nextId);
+    }
+  });
+  btnRow.appendChild(nextLevelBtn);
+
+  levelCompleteDiv.appendChild(btnRow);
+
+  const selectBtn = document.createElement('button');
+  selectBtn.textContent = 'Level Select';
+  selectBtn.style.cssText = buttonStyle('#aaa');
+  selectBtn.addEventListener('click', () => {
+    showLevelSelect();
+  });
+  levelCompleteDiv.appendChild(selectBtn);
+}
+
+// --- Level Select UI ---
+let levelSelectDiv: HTMLDivElement | null = null;
+
+function showLevelSelect() {
+  if (levelSelectDiv) {
+    levelSelectDiv.style.display = 'flex';
+    return;
+  }
+
+  levelSelectDiv = document.createElement('div');
+  levelSelectDiv.style.cssText =
+    'position:absolute;top:0;left:0;width:100%;height:100%;' +
+    'display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(0,0,0,0.85);z-index:100;';
+
+  const panel = document.createElement('div');
+  panel.style.cssText =
+    'background:#1a1a2e;border:2px solid #444;border-radius:12px;' +
+    'padding:32px;text-align:center;';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Select Level';
+  title.style.cssText = 'color:#eee;font-size:1.8rem;margin-bottom:20px;font-family:system-ui,sans-serif;';
+  panel.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.style.cssText =
+    'display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;';
+
+  for (let i = 1; i <= 10; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = String(i);
+    btn.style.cssText =
+      'width:56px;height:56px;border-radius:8px;border:2px solid #ff6b35;' +
+      'background:transparent;color:#ff6b35;font-size:1.3rem;font-weight:bold;' +
+      'cursor:pointer;font-family:system-ui,sans-serif;transition:all 0.2s;';
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = '#ff6b35';
+      btn.style.color = '#fff';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'transparent';
+      btn.style.color = '#ff6b35';
+    });
+    btn.addEventListener('click', () => {
+      network.sendSelectLevel(i);
+      hideLevelSelect();
+    });
+    grid.appendChild(btn);
+  }
+  panel.appendChild(grid);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = buttonStyle('#aaa');
+  closeBtn.addEventListener('click', () => {
+    hideLevelSelect();
+  });
+  panel.appendChild(closeBtn);
+
+  levelSelectDiv.appendChild(panel);
+  document.body.appendChild(levelSelectDiv);
+}
+
+function hideLevelSelect() {
+  if (levelSelectDiv) {
+    levelSelectDiv.style.display = 'none';
+  }
 }
 
 // --- State sync ---
 let currentPhase = 'waiting';
+let currentLevelId = 1;
 
 network.onStateChange = (state: GameState) => {
   // Phase transitions
@@ -258,6 +365,16 @@ network.onStateChange = (state: GameState) => {
     );
   }
 
+  // Track current level
+  if (state.levelId) {
+    currentLevelId = state.levelId;
+  }
+
+  // Hide level select when a new level starts playing
+  if (state.phase === 'playing') {
+    hideLevelSelect();
+  }
+
   // Update HUD
   if (hudMoveCounter) {
     hudMoveCounter.textContent = 'Moves: ' + state.moveCount;
@@ -278,7 +395,17 @@ buildHUD();
 buildLevelComplete();
 
 // --- Render loop ---
+let lastTime = performance.now() / 1000;
+
 renderer.startLoop(() => {
-  // Update loop — currently driven by state sync callbacks
-  // Future: add animation interpolation here
+  const now = performance.now() / 1000;
+  const dt = Math.min(now - lastTime, 0.1); // Cap dt to avoid large jumps
+  lastTime = now;
+
+  // Update particle effects on blocks
+  fireBlock.update(dt, now);
+  waterBlock.update(dt, now);
+
+  // Update tile visual effects (lava pulse, water shimmer)
+  gridMesh.update(now);
 });
