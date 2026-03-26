@@ -399,7 +399,7 @@ function buildLevelComplete() {
   nextLevelBtn.style.padding = '12px 28px';
   nextLevelBtn.addEventListener('click', () => {
     const nextId = currentLevelId + 1;
-    if (nextId <= 10) {
+    if (nextId <= 34) {
       network.sendSelectLevel(nextId);
     }
   });
@@ -452,7 +452,7 @@ function showLevelSelect() {
   const grid = document.createElement('div');
   grid.className = 'ls-grid';
 
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 1; i <= 34; i++) {
     const btnWrapper = document.createElement('div');
     btnWrapper.style.position = 'relative';
     btnWrapper.style.marginBottom = '18px';
