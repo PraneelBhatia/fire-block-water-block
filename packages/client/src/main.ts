@@ -258,7 +258,8 @@ function buildOnlineLobby() {
 }
 
 // --- HUD ---
-let hudMoveCounter: HTMLElement;
+let hudFireMoves: HTMLElement;
+let hudWaterMoves: HTMLElement;
 let hudRoomCode: HTMLElement;
 let hudLevelName: HTMLElement;
 let hudConnectionDot: HTMLElement;
@@ -301,16 +302,23 @@ function buildHUD() {
   levelItem.appendChild(hudLevelName);
   hudDiv.appendChild(levelItem);
 
-  // Move counter
+  // Move counters — fire vs water
   const moveItem = document.createElement('div');
-  moveItem.className = 'hud-item';
-  const moveLabel = document.createElement('span');
-  moveLabel.className = 'hud-label';
-  moveLabel.textContent = 'Moves';
-  moveItem.appendChild(moveLabel);
-  hudMoveCounter = document.createElement('span');
-  hudMoveCounter.className = 'hud-value';
-  moveItem.appendChild(hudMoveCounter);
+  moveItem.className = 'hud-item hud-moves';
+  const fireMovesSpan = document.createElement('span');
+  fireMovesSpan.className = 'hud-move-fire';
+  fireMovesSpan.textContent = '0';
+  const moveSep = document.createElement('span');
+  moveSep.className = 'hud-move-sep';
+  moveSep.textContent = ':';
+  const waterMovesSpan = document.createElement('span');
+  waterMovesSpan.className = 'hud-move-water';
+  waterMovesSpan.textContent = '0';
+  moveItem.appendChild(fireMovesSpan);
+  moveItem.appendChild(moveSep);
+  moveItem.appendChild(waterMovesSpan);
+  hudFireMoves = fireMovesSpan;
+  hudWaterMoves = waterMovesSpan;
   hudDiv.appendChild(moveItem);
 
   // Fall off edge toggle
@@ -342,7 +350,9 @@ function buildHUD() {
 }
 
 // --- Level Complete ---
-let lcMovesValue: HTMLElement;
+let lcFireMoves: HTMLElement;
+let lcWaterMoves: HTMLElement;
+let lcTotalMoves: HTMLElement;
 
 function buildLevelComplete() {
   levelCompleteDiv.className = 'lc-backdrop';
@@ -370,15 +380,44 @@ function buildLevelComplete() {
   heading.textContent = 'LEVEL COMPLETE!';
   panel.appendChild(heading);
 
-  // Moves summary
+  // Moves summary — fire vs water scoreboard
   const movesDiv = document.createElement('div');
-  movesDiv.className = 'lc-moves';
-  const movesLabel = document.createTextNode('Total moves: ');
-  movesDiv.appendChild(movesLabel);
-  lcMovesValue = document.createElement('span');
-  lcMovesValue.className = 'lc-moves-value';
-  lcMovesValue.textContent = '0';
-  movesDiv.appendChild(lcMovesValue);
+  movesDiv.className = 'lc-moves-scoreboard';
+
+  const fireRow = document.createElement('div');
+  fireRow.className = 'lc-score-row fire';
+  const fireLabel = document.createElement('span');
+  fireLabel.className = 'lc-score-label';
+  fireLabel.textContent = 'BLOX';
+  lcFireMoves = document.createElement('span');
+  lcFireMoves.className = 'lc-score-value';
+  lcFireMoves.textContent = '0';
+  fireRow.appendChild(fireLabel);
+  fireRow.appendChild(lcFireMoves);
+  movesDiv.appendChild(fireRow);
+
+  const waterRow = document.createElement('div');
+  waterRow.className = 'lc-score-row water';
+  const waterLabel = document.createElement('span');
+  waterLabel.className = 'lc-score-label';
+  waterLabel.textContent = 'WARZ';
+  lcWaterMoves = document.createElement('span');
+  lcWaterMoves.className = 'lc-score-value';
+  lcWaterMoves.textContent = '0';
+  waterRow.appendChild(waterLabel);
+  waterRow.appendChild(lcWaterMoves);
+  movesDiv.appendChild(waterRow);
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'lc-score-total';
+  const totalLabel = document.createElement('span');
+  totalLabel.textContent = 'Total';
+  lcTotalMoves = document.createElement('span');
+  lcTotalMoves.textContent = '0';
+  totalRow.appendChild(totalLabel);
+  totalRow.appendChild(lcTotalMoves);
+  movesDiv.appendChild(totalRow);
+
   panel.appendChild(movesDiv);
 
   // Button row
@@ -785,8 +824,11 @@ network.onStateChange = (state: GameState) => {
   }
 
   // Update HUD
-  if (hudMoveCounter) {
-    hudMoveCounter.textContent = String(state.moveCount);
+  if (hudFireMoves) {
+    hudFireMoves.textContent = String(state.fireMoves ?? 0);
+  }
+  if (hudWaterMoves) {
+    hudWaterMoves.textContent = String(state.waterMoves ?? 0);
   }
   if (hudRoomCode && state.roomCode) {
     hudRoomCode.textContent = 'Room ' + state.roomCode;
@@ -800,9 +842,9 @@ network.onStateChange = (state: GameState) => {
     hudFallOffToggle.style.color = state.settings.fallOffEdge ? 'var(--success)' : 'var(--error)';
   }
   // Update level complete moves
-  if (lcMovesValue) {
-    lcMovesValue.textContent = String(state.moveCount);
-  }
+  if (lcFireMoves) lcFireMoves.textContent = String(state.fireMoves ?? 0);
+  if (lcWaterMoves) lcWaterMoves.textContent = String(state.waterMoves ?? 0);
+  if (lcTotalMoves) lcTotalMoves.textContent = String(state.moveCount);
 };
 
 // --- Build UI ---

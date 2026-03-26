@@ -26,6 +26,8 @@ export interface GameState {
     alive: boolean;
   };
   moveCount: number;
+  fireMoves: number;
+  waterMoves: number;
   tilesJson: string;
   player1: { sessionId: string; assignedElement: string; connected: boolean };
   player2: { sessionId: string; assignedElement: string; connected: boolean };

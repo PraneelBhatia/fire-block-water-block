@@ -668,6 +668,58 @@
     /* =============================
        CONTROLS HINT
        ============================= */
+    /* HUD move counter — fire vs water */
+    .hud-moves {
+      gap: 6px;
+      font-family: var(--font-display);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .hud-move-fire {
+      color: var(--fire);
+      min-width: 1.5em; text-align: center;
+    }
+    .hud-move-sep {
+      color: var(--on-surface-dim);
+    }
+    .hud-move-water {
+      color: var(--water);
+      min-width: 1.5em; text-align: center;
+    }
+
+    /* Level complete scoreboard */
+    .lc-moves-scoreboard {
+      margin-bottom: 28px;
+    }
+    .lc-score-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 24px;
+      border-radius: var(--r-sm);
+      margin-bottom: 6px;
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 1rem;
+    }
+    .lc-score-row.fire {
+      background: linear-gradient(90deg, rgba(255, 109, 58, 0.15), transparent);
+      color: var(--fire);
+    }
+    .lc-score-row.water {
+      background: linear-gradient(90deg, rgba(66, 165, 245, 0.15), transparent);
+      color: var(--water);
+    }
+    .lc-score-label { letter-spacing: 2px; }
+    .lc-score-value { font-size: 1.3rem; }
+    .lc-score-total {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 24px;
+      margin-top: 8px;
+      border-top: 1px solid var(--surface-high);
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 0.8rem;
+      color: var(--on-surface-variant);
+      letter-spacing: 1px;
+    }
+
     .controls-hint {
       font-family: var(--font-body);
       color: var(--on-surface-dim);

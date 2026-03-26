@@ -40,6 +40,8 @@ interface PlainGameState {
   levelId: number;
   roomCode: string;
   moveCount: number;
+  fireMoves: number;
+  waterMoves: number;
   tilesJson: string;
   fireBlock: PlainBlock;
   waterBlock: PlainBlock;
@@ -63,6 +65,8 @@ export class GameRoom extends Room<GameStateSchema> {
     levelId: 0,
     roomCode: '',
     moveCount: 0,
+    fireMoves: 0,
+    waterMoves: 0,
     tilesJson: '',
     fireBlock: { position: { x: 0, y: 0 }, orientation: 'standing', element: 'fire', alive: true },
     waterBlock: { position: { x: 0, y: 0 }, orientation: 'standing', element: 'water', alive: true },
@@ -195,6 +199,7 @@ export class GameRoom extends Room<GameStateSchema> {
         block.alive = false;
         this.gameState.deathCause = 'fall';
         this.gameState.moveCount++;
+        if (element === Element.Fire) this.gameState.fireMoves++; else this.gameState.waterMoves++;
         this.broadcast('state', this.gameState);
         this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
       }
@@ -205,6 +210,7 @@ export class GameRoom extends Room<GameStateSchema> {
     block.position.y = rolled.position.y;
     block.orientation = rolled.orientation;
     this.gameState.moveCount++;
+    if (element === Element.Fire) this.gameState.fireMoves++; else this.gameState.waterMoves++;
 
     const updatedBlock: BlockState = { ...blockState, position: rolled.position, orientation: rolled.orientation };
     const fpTiles = getFootprintTiles(updatedBlock, this.currentTiles);
@@ -284,6 +290,8 @@ export class GameRoom extends Room<GameStateSchema> {
     this.gameState.levelId = levelId;
     this.gameState.phase = 'playing';
     this.gameState.moveCount = 0;
+    this.gameState.fireMoves = 0;
+    this.gameState.waterMoves = 0;
     this.gameState.deathCause = 'none';
     this.gameState.tilesJson = JSON.stringify(this.currentTiles);
 

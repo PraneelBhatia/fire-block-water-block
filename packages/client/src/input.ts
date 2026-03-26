@@ -20,11 +20,17 @@ const WASD_MAP: Record<string, Direction> = {
 // Minimum time between moves per block (matches roll animation duration)
 const MOVE_COOLDOWN_MS = 280;
 
+function isTyping(): boolean {
+  const el = document.activeElement;
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+}
+
 /** Online mode: both WASD and arrows control the same (your) block */
 export function setupOnlineInput(onMove: MoveCallback) {
   let lastMoveTime = 0;
 
   window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (isTyping()) return;
     const direction = ARROW_MAP[e.code] ?? WASD_MAP[e.code];
     if (!direction) return;
     e.preventDefault();
@@ -42,6 +48,7 @@ export function setupLocalInput(onMove: LocalMoveCallback) {
   let lastWaterTime = 0;
 
   window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (isTyping()) return;
     const now = performance.now();
 
     const wasd = WASD_MAP[e.code];
