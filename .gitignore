@@ -4,4 +4,9 @@ dist/
 *.local
 .playwright-mcp/
 *.png
+*.jpeg
 tsconfig.tsbuildinfo
+debug-images/
+packages/server/public/
+reference/
+stitch/

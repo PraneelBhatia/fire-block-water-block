@@ -1,8 +1,16 @@
 import { Client, Room } from 'colyseus.js';
 import { Direction } from '@fbwb/shared';
 
-const SERVER_URL = 'ws://localhost:2567';
-const HTTP_URL = 'http://localhost:2567';
+// In production, server and client are on the same host.
+// In dev, client is on :3000 and server on :2567.
+const isDev = window.location.port === '3000';
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const SERVER_URL = isDev
+  ? 'ws://localhost:2567'
+  : `${wsProtocol}//${window.location.host}`;
+const HTTP_URL = isDev
+  ? 'http://localhost:2567'
+  : `${window.location.protocol}//${window.location.host}`;
 
 export interface GameState {
   phase: string;
@@ -25,6 +33,7 @@ export interface GameState {
   player1: { sessionId: string; assignedElement: string; connected: boolean };
   player2: { sessionId: string; assignedElement: string; connected: boolean };
   settings: { fallOffEdge: boolean };
+  deathCause: string;
 }
 
 export class NetworkClient {

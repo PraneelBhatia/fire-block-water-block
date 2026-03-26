@@ -12,6 +12,7 @@ import {
   getFootprintTiles,
   activateSwitch,
   checkWinCondition,
+  checkCollision,
   getLevel,
 } from '@fbwb/shared';
 import { GameStateSchema } from './GameState.js';
@@ -45,6 +46,7 @@ interface PlainGameState {
   player1: PlainPlayer;
   player2: PlainPlayer;
   settings: GameSettings;
+  deathCause: string; // 'none' | 'fall' | 'hazard' | 'collision'
 }
 
 export class GameRoom extends Room<GameStateSchema> {
@@ -67,6 +69,7 @@ export class GameRoom extends Room<GameStateSchema> {
     player1: { sessionId: '', assignedElement: '', connected: false },
     player2: { sessionId: '', assignedElement: '', connected: false },
     settings: { fallOffEdge: true },
+    deathCause: 'none',
   };
 
   onCreate() {
@@ -190,6 +193,7 @@ export class GameRoom extends Room<GameStateSchema> {
         block.position.y = rolled.position.y;
         block.orientation = rolled.orientation;
         block.alive = false;
+        this.gameState.deathCause = 'fall';
         this.gameState.moveCount++;
         this.broadcast('state', this.gameState);
         this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
@@ -206,6 +210,20 @@ export class GameRoom extends Room<GameStateSchema> {
     const fpTiles = getFootprintTiles(updatedBlock, this.currentTiles);
     if (checkHazard(updatedBlock, fpTiles)) {
       block.alive = false;
+      this.gameState.deathCause = 'hazard';
+      this.broadcast('state', this.gameState);
+      this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
+      return;
+    }
+
+    // Check collision between fire and water blocks
+    const fb = this.buildBlockState(this.gameState.fireBlock, Element.Fire);
+    const wb = this.buildBlockState(this.gameState.waterBlock, Element.Water);
+    if (checkCollision(fb, wb)) {
+
+      this.gameState.fireBlock.alive = false;
+      this.gameState.waterBlock.alive = false;
+      this.gameState.deathCause = 'collision';
       this.broadcast('state', this.gameState);
       this.clock.setTimeout(() => { this.loadLevel(this.gameState.levelId); }, 2000);
       return;
@@ -225,8 +243,6 @@ export class GameRoom extends Room<GameStateSchema> {
       }
     }
 
-    const fb = this.buildBlockState(this.gameState.fireBlock, Element.Fire);
-    const wb = this.buildBlockState(this.gameState.waterBlock, Element.Water);
     if (checkWinCondition(fb, wb, this.currentTiles)) {
       this.gameState.phase = 'completed';
     }
@@ -268,6 +284,7 @@ export class GameRoom extends Room<GameStateSchema> {
     this.gameState.levelId = levelId;
     this.gameState.phase = 'playing';
     this.gameState.moveCount = 0;
+    this.gameState.deathCause = 'none';
     this.gameState.tilesJson = JSON.stringify(this.currentTiles);
 
     this.applyBlockStart(this.gameState.fireBlock, level.fireStart, Element.Fire);

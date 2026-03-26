@@ -53,6 +53,21 @@ export function activateSwitch(tiles: TileType[][], effect: SwitchEffect): TileT
 }
 
 /**
+ * Returns true if the two blocks' footprints overlap (collision).
+ */
+export function checkCollision(a: BlockState, b: BlockState): boolean {
+  if (!a.alive || !b.alive) return false;
+  const fpA = getFootprint(a);
+  const fpB = getFootprint(b);
+  for (const cellA of fpA) {
+    for (const cellB of fpB) {
+      if (cellA.x === cellB.x && cellA.y === cellB.y) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Returns true when both blocks are Standing on their matching exit tiles.
  */
 export function checkWinCondition(

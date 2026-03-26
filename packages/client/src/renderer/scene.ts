@@ -13,7 +13,12 @@ export class GameRenderer {
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a1a2e);
+
+    // Bright sky background — lively Minecraft-ish feel
+    this.scene.background = new THREE.Color(0x7ec8e3);
+
+    // Very light atmospheric fog matching sky
+    this.scene.fog = new THREE.FogExp2(0x7ec8e3, 0.006);
 
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new THREE.OrthographicCamera(
@@ -25,12 +30,10 @@ export class GameRenderer {
       200,
     );
 
-    // OG Bloxorz camera angle: looking down at ~30° from horizontal,
-    // rotated 45° around Y axis. This creates the classic isometric
-    // perspective where the grid runs diagonally.
+    // OG Bloxorz camera angle
     const distance = 40;
-    const elevationAngle = 35 * (Math.PI / 180); // 35° from horizontal (steeper, like OG)
-    const rotationAngle = 315 * (Math.PI / 180);  // 315° — ArrowUp=upper-right, ArrowRight=lower-right (OG Bloxorz)
+    const elevationAngle = 35 * (Math.PI / 180);
+    const rotationAngle = 315 * (Math.PI / 180);
 
     this.camera.position.set(
       distance * Math.cos(elevationAngle) * Math.sin(rotationAngle),
@@ -39,20 +42,52 @@ export class GameRenderer {
     );
     this.camera.lookAt(0, 0, 0);
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.3;
 
-    // Lighting matching OG game feel
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    // --- Lighting (bright, sunny, outdoor) ---
+    // Strong ambient so nothing is too dark
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
     this.scene.add(ambient);
-    const directional = new THREE.DirectionalLight(0xffffff, 0.6);
-    directional.position.set(5, 15, 5);
-    directional.castShadow = true;
-    directional.shadow.mapSize.width = 2048;
-    directional.shadow.mapSize.height = 2048;
-    this.scene.add(directional);
+
+    // Bright sunlight from upper-right
+    const mainLight = new THREE.DirectionalLight(0xfffbe8, 1.0);
+    mainLight.position.set(8, 20, 6);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 1;
+    mainLight.shadow.camera.far = 60;
+    mainLight.shadow.camera.left = -15;
+    mainLight.shadow.camera.right = 15;
+    mainLight.shadow.camera.top = 15;
+    mainLight.shadow.camera.bottom = -15;
+    mainLight.shadow.bias = -0.002;
+    mainLight.shadow.radius = 3;
+    this.scene.add(mainLight);
+
+    // Warm fill from left
+    const fillLight = new THREE.DirectionalLight(0xffe0b2, 0.3);
+    fillLight.position.set(-10, 8, -4);
+    this.scene.add(fillLight);
+
+    // Cool fill from right for dimension
+    const coolFill = new THREE.DirectionalLight(0xb2e0ff, 0.2);
+    coolFill.position.set(10, 6, 8);
+    this.scene.add(coolFill);
+
+    // Sky/ground hemisphere — bright blue sky, warm earthy ground
+    const hemi = new THREE.HemisphereLight(0x87ceeb, 0x8b7355, 0.4);
+    this.scene.add(hemi);
 
     window.addEventListener('resize', () => this.onResize());
   }
@@ -62,11 +97,9 @@ export class GameRenderer {
     this.gridWidth = width;
     this.gridHeight = height;
 
-    // Calculate center of the grid in world space
     const centerX = (width - 1) * this.tileSize / 2;
     const centerZ = -(height - 1) * this.tileSize / 2;
 
-    // Position camera relative to grid center
     const distance = 40;
     const elevationAngle = 35 * (Math.PI / 180);
     const rotationAngle = 315 * (Math.PI / 180);
@@ -78,7 +111,6 @@ export class GameRenderer {
     );
     this.camera.lookAt(centerX, 0, centerZ);
 
-    // Auto-fit: adjust viewSize based on grid dimensions
     const maxDim = Math.max(width, height);
     this.viewSize = Math.max(5, maxDim * 0.75);
     this.onResize();

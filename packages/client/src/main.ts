@@ -4,6 +4,9 @@ import { GridMesh } from './entities/gridMesh.js';
 import { BlockMesh } from './entities/blockMesh.js';
 import { setupOnlineInput, setupLocalInput } from './input.js';
 import { NetworkClient, GameState } from './network.js';
+import { initAudio, playMoveSound, playLevelComplete, playDeathSound, playClickSound } from './audio.js';
+import { createSteamBurst, updateSteamBurst, createDissolveBurst, updateDissolveBurst } from './entities/effects.js';
+import * as THREE from 'three';
 
 // --- Level names (kept client-side for UI display) ---
 const LEVEL_NAMES: Record<number, string> = {
@@ -44,29 +47,25 @@ function buildModeSelect() {
   const container = document.createElement('div');
   container.className = 'lobby-container';
 
-  // Title
+  // Title — stacked layout
   const titleRow = document.createElement('div');
   titleRow.className = 'lobby-title-row';
-  const fireIcon = document.createElement('span');
-  fireIcon.className = 'lobby-fire-icon';
-  fireIcon.textContent = '\u{1F525}';
-  titleRow.appendChild(fireIcon);
+
   const titleFire = document.createElement('span');
   titleFire.className = 'title-fire';
   titleFire.textContent = 'FIRE BLOCK';
   titleRow.appendChild(titleFire);
+
   const titleAmp = document.createElement('span');
   titleAmp.className = 'title-amp';
   titleAmp.textContent = '&';
   titleRow.appendChild(titleAmp);
+
   const titleWater = document.createElement('span');
   titleWater.className = 'title-water';
   titleWater.textContent = 'WATER BLOCK';
   titleRow.appendChild(titleWater);
-  const waterIcon = document.createElement('span');
-  waterIcon.className = 'lobby-water-icon';
-  waterIcon.textContent = '\u{1F4A7}';
-  titleRow.appendChild(waterIcon);
+
   container.appendChild(titleRow);
 
   const tagline = document.createElement('p');
@@ -77,10 +76,12 @@ function buildModeSelect() {
   // Local Co-op button
   const localBtn = document.createElement('button');
   localBtn.className = 'btn-fire';
-  localBtn.style.width = '280px';
-  localBtn.style.marginBottom = '12px';
+  localBtn.style.minWidth = '240px';
+  localBtn.style.marginBottom = '14px';
   localBtn.textContent = 'Local Co-Op';
   localBtn.addEventListener('click', async () => {
+    initAudio();
+    playClickSound();
     gameMode = 'local';
     localBtn.disabled = true;
     localBtn.textContent = 'Starting...';
@@ -90,21 +91,18 @@ function buildModeSelect() {
     });
     lobbyDiv.style.display = 'none';
     hudDiv.style.display = 'flex';
+    showControlsOverlay();
   });
   container.appendChild(localBtn);
-
-  // Controls hint for local
-  const localHint = document.createElement('p');
-  localHint.style.cssText = 'color:#666;font-size:0.75rem;margin-bottom:16px;text-align:center;';
-  localHint.textContent = 'WASD = Fire Block  |  Arrow Keys = Water Block';
-  container.appendChild(localHint);
 
   // Online Co-op button
   const onlineBtn = document.createElement('button');
   onlineBtn.className = 'btn-water';
-  onlineBtn.style.width = '280px';
+  onlineBtn.style.minWidth = '240px';
   onlineBtn.textContent = 'Online Co-Op';
   onlineBtn.addEventListener('click', () => {
+    initAudio();
+    playClickSound();
     gameMode = 'online';
     // Remove mode select, show online lobby
     while (lobbyDiv.firstChild) lobbyDiv.removeChild(lobbyDiv.firstChild);
@@ -122,15 +120,9 @@ function buildOnlineLobby() {
   const container = document.createElement('div');
   container.className = 'lobby-container';
 
-  // --- Title row with decorative icons ---
+  // --- Title row — stacked layout ---
   const titleRow = document.createElement('div');
   titleRow.className = 'lobby-title-row';
-
-  const fireIcon = document.createElement('span');
-  fireIcon.className = 'lobby-fire-icon';
-  fireIcon.setAttribute('aria-hidden', 'true');
-  fireIcon.textContent = '\u{1F525}';
-  titleRow.appendChild(fireIcon);
 
   const titleFire = document.createElement('span');
   titleFire.className = 'title-fire';
@@ -146,12 +138,6 @@ function buildOnlineLobby() {
   titleWater.className = 'title-water';
   titleWater.textContent = 'WATER BLOCK';
   titleRow.appendChild(titleWater);
-
-  const waterIcon = document.createElement('span');
-  waterIcon.className = 'lobby-water-icon';
-  waterIcon.setAttribute('aria-hidden', 'true');
-  waterIcon.textContent = '\u{1F4A7}';
-  titleRow.appendChild(waterIcon);
 
   container.appendChild(titleRow);
 
@@ -171,6 +157,7 @@ function buildOnlineLobby() {
   createBtn.className = 'btn-fire';
   createBtn.textContent = 'Create Room';
   createBtn.addEventListener('click', async () => {
+    playClickSound();
     createBtn.disabled = true;
     createBtn.textContent = 'Creating...';
     try {
@@ -308,7 +295,15 @@ function buildHUD() {
   levelItem.className = 'hud-item';
   const levelIcon = document.createElement('span');
   levelIcon.className = 'hud-icon';
-  levelIcon.textContent = '\u{1F3AE}';
+  const levelSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  levelSvg.setAttribute('width', '16');
+  levelSvg.setAttribute('height', '16');
+  levelSvg.setAttribute('viewBox', '0 0 16 16');
+  levelSvg.setAttribute('fill', 'currentColor');
+  const levelPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  levelPath.setAttribute('d', 'M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm1 2v8h8V4H4zm1 1h2v2H5V5zm3 0h2v2H8V5zm-3 3h2v2H5V8zm3 0h2v2H8V8z');
+  levelSvg.appendChild(levelPath);
+  levelIcon.appendChild(levelSvg);
   levelItem.appendChild(levelIcon);
   hudLevelName = document.createElement('span');
   hudLevelName.className = 'hud-value';
@@ -339,7 +334,7 @@ function buildHUD() {
   hudFallOffToggle = document.createElement('span');
   hudFallOffToggle.className = 'hud-value';
   hudFallOffToggle.textContent = 'ON';
-  hudFallOffToggle.style.color = '#4caf50';
+  hudFallOffToggle.style.color = 'var(--success)';
   fallOffItem.appendChild(hudFallOffToggle);
   fallOffItem.addEventListener('click', () => {
     network.toggleFallOff();
@@ -365,10 +360,18 @@ function buildLevelComplete() {
   const panel = document.createElement('div');
   panel.className = 'lc-panel';
 
-  // Star icon
+  // Star icon (SVG)
   const star = document.createElement('div');
   star.className = 'lc-star';
-  star.textContent = '\u{2B50}';
+  const starSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  starSvg.setAttribute('width', '56');
+  starSvg.setAttribute('height', '56');
+  starSvg.setAttribute('viewBox', '0 0 24 24');
+  starSvg.setAttribute('fill', '#f5a623');
+  const starPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  starPath.setAttribute('d', 'M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z');
+  starSvg.appendChild(starPath);
+  star.appendChild(starSvg);
   panel.appendChild(star);
 
   // Heading
@@ -398,6 +401,7 @@ function buildLevelComplete() {
   nextLevelBtn.style.fontSize = '0.95rem';
   nextLevelBtn.style.padding = '12px 28px';
   nextLevelBtn.addEventListener('click', () => {
+    playClickSound();
     const nextId = currentLevelId + 1;
     if (nextId <= getAllLevels().length) {
       network.sendSelectLevel(nextId);
@@ -409,6 +413,7 @@ function buildLevelComplete() {
   restartBtn.className = 'btn-secondary';
   restartBtn.textContent = 'Play Again';
   restartBtn.addEventListener('click', () => {
+    playClickSound();
     network.sendRestart();
   });
   btnRow.appendChild(restartBtn);
@@ -456,7 +461,7 @@ function showLevelSelect() {
   for (let i = 1; i <= totalLevels; i++) {
     const btnWrapper = document.createElement('div');
     btnWrapper.style.position = 'relative';
-    btnWrapper.style.marginBottom = '18px';
+    btnWrapper.style.marginBottom = '10px';
 
     const btn = document.createElement('button');
     btn.className = 'ls-btn';
@@ -513,20 +518,81 @@ function hideLevelSelect() {
   }
 }
 
+// --- Controls Overlay (shown at game start / level change) ---
+function showControlsOverlay() {
+  // Remove existing if present
+  const existing = document.getElementById('controls-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'controls-overlay';
+  overlay.className = 'hud-controls-overlay';
+
+  // Fire controls
+  const fireGroup = document.createElement('div');
+  fireGroup.className = 'control-group';
+  const fireKbd = document.createElement('kbd');
+  fireKbd.textContent = 'W A S D';
+  const fireLabel = document.createElement('span');
+  fireLabel.className = 'control-label fire';
+  fireLabel.textContent = 'Fire Block';
+  fireGroup.appendChild(fireKbd);
+  fireGroup.appendChild(fireLabel);
+  overlay.appendChild(fireGroup);
+
+  // Water controls
+  const waterGroup = document.createElement('div');
+  waterGroup.className = 'control-group';
+  const waterKbd = document.createElement('kbd');
+  waterKbd.textContent = '\u2190 \u2191 \u2193 \u2192';
+  const waterLabel = document.createElement('span');
+  waterLabel.className = 'control-label water';
+  waterLabel.textContent = 'Water Block';
+  waterGroup.appendChild(waterKbd);
+  waterGroup.appendChild(waterLabel);
+  overlay.appendChild(waterGroup);
+
+  const uiOverlay = document.getElementById('ui-overlay');
+  if (uiOverlay) uiOverlay.appendChild(overlay);
+
+  // Remove after animation completes
+  setTimeout(() => overlay.remove(), 6500);
+}
+
 // --- Block Death Feedback ---
 let deathOverlayTimeout: ReturnType<typeof setTimeout> | null = null;
 let lastFireAlive = true;
 let lastWaterAlive = true;
+// Active steam burst effects to update each frame
+const activeSteamBursts: THREE.Group[] = [];
+const activeDissolveBursts: THREE.Group[] = [];
+let fireOnExit = false;
+let waterOnExit = false;
 
-function showDeathOverlay() {
-  // Remove existing overlay if present
+function handleBlockDeath(
+  block: BlockMesh,
+  deathCause: string,
+  worldPos: THREE.Vector3,
+) {
+  playDeathSound();
+
+  if (deathCause === 'fall') {
+    // Let the block stay visible and fall
+    block.setVisible(true);
+    block.startFallAnimation();
+  } else {
+    // hazard or collision — spawn steam at block position
+    const steam = createSteamBurst(renderer.scene, worldPos);
+    activeSteamBursts.push(steam);
+  }
+
+  showDeathOverlay(deathCause);
+}
+
+function showDeathOverlay(cause: string) {
   const existing = document.getElementById('death-overlay');
-  if (existing) {
-    existing.remove();
-  }
-  if (deathOverlayTimeout) {
-    clearTimeout(deathOverlayTimeout);
-  }
+  if (existing) existing.remove();
+  if (deathOverlayTimeout) clearTimeout(deathOverlayTimeout);
 
   const overlay = document.createElement('div');
   overlay.id = 'death-overlay';
@@ -534,13 +600,17 @@ function showDeathOverlay() {
 
   const text = document.createElement('div');
   text.className = 'death-overlay-text';
-  text.textContent = 'Block Destroyed!';
+  if (cause === 'collision') {
+    text.textContent = 'Blocks Collided!';
+  } else if (cause === 'fall') {
+    text.textContent = 'Block Fell!';
+  } else {
+    text.textContent = 'Block Destroyed!';
+  }
   overlay.appendChild(text);
 
   const uiOverlay = document.getElementById('ui-overlay');
-  if (uiOverlay) {
-    uiOverlay.appendChild(overlay);
-  }
+  if (uiOverlay) uiOverlay.appendChild(overlay);
 
   deathOverlayTimeout = setTimeout(() => {
     overlay.remove();
@@ -561,6 +631,7 @@ interface TrackedPose {
 }
 let lastFirePose: TrackedPose | null = null;
 let lastWaterPose: TrackedPose | null = null;
+let currentTiles: TileType[][] = [];
 
 network.onStateChange = (state: GameState) => {
   // Phase transitions
@@ -574,6 +645,7 @@ network.onStateChange = (state: GameState) => {
 
     if (currentPhase === 'completed') {
       levelCompleteDiv.style.display = 'flex';
+      playLevelComplete();
     } else {
       levelCompleteDiv.style.display = 'none';
     }
@@ -583,6 +655,7 @@ network.onStateChange = (state: GameState) => {
   if (state.tilesJson) {
     try {
       const tiles: TileType[][] = JSON.parse(state.tilesJson);
+      currentTiles = tiles;
       gridMesh.updateTiles(tiles);
       // Center camera on the grid when level loads
       if (tiles.length > 0 && tiles[0].length > 0) {
@@ -595,11 +668,16 @@ network.onStateChange = (state: GameState) => {
 
   // Update fire block
   if (state.fireBlock) {
-    fireBlock.setVisible(state.fireBlock.alive);
+    const cause = state.deathCause || 'none';
 
     // Detect death
     if (!state.fireBlock.alive && lastFireAlive) {
-      showDeathOverlay();
+      const pos = renderer.gridToWorld(state.fireBlock.position.x, state.fireBlock.position.y);
+      handleBlockDeath(fireBlock, cause, pos);
+    }
+    // Only hide if not a fall (fall anim handles visibility)
+    if (cause !== 'fall') {
+      fireBlock.setVisible(state.fireBlock.alive);
     }
     lastFireAlive = state.fireBlock.alive;
 
@@ -616,6 +694,7 @@ network.onStateChange = (state: GameState) => {
       newFireOri !== lastFirePose.orientation
     ) {
       // Position or orientation changed — animate the roll
+      playMoveSound();
       const now = performance.now() / 1000;
       fireBlock.animateRoll(
         { x: lastFirePose.x, y: lastFirePose.y },
@@ -627,15 +706,31 @@ network.onStateChange = (state: GameState) => {
     }
 
     lastFirePose = { x: newFireX, y: newFireY, orientation: newFireOri };
+
+    // Check if fire block just reached its exit
+    if (state.fireBlock.alive && newFireOri === BlockOrientation.Standing && currentTiles[newFireY]?.[newFireX] === TileType.ExitFire) {
+      if (!fireOnExit) {
+        fireOnExit = true;
+        const pos = renderer.gridToWorld(newFireX, newFireY);
+        const burst = createDissolveBurst(renderer.scene, pos, 'fire');
+        activeDissolveBursts.push(burst);
+      }
+    } else {
+      fireOnExit = false;
+    }
   }
 
   // Update water block
   if (state.waterBlock) {
-    waterBlock.setVisible(state.waterBlock.alive);
+    const cause = state.deathCause || 'none';
 
     // Detect death
     if (!state.waterBlock.alive && lastWaterAlive) {
-      showDeathOverlay();
+      const pos = renderer.gridToWorld(state.waterBlock.position.x, state.waterBlock.position.y);
+      handleBlockDeath(waterBlock, cause, pos);
+    }
+    if (cause !== 'fall') {
+      waterBlock.setVisible(state.waterBlock.alive);
     }
     lastWaterAlive = state.waterBlock.alive;
 
@@ -652,6 +747,7 @@ network.onStateChange = (state: GameState) => {
       newWaterOri !== lastWaterPose.orientation
     ) {
       // Position or orientation changed — animate the roll
+      playMoveSound();
       const now = performance.now() / 1000;
       waterBlock.animateRoll(
         { x: lastWaterPose.x, y: lastWaterPose.y },
@@ -663,6 +759,18 @@ network.onStateChange = (state: GameState) => {
     }
 
     lastWaterPose = { x: newWaterX, y: newWaterY, orientation: newWaterOri };
+
+    // Check if water block just reached its exit
+    if (state.waterBlock.alive && newWaterOri === BlockOrientation.Standing && currentTiles[newWaterY]?.[newWaterX] === TileType.ExitWater) {
+      if (!waterOnExit) {
+        waterOnExit = true;
+        const pos = renderer.gridToWorld(newWaterX, newWaterY);
+        const burst = createDissolveBurst(renderer.scene, pos, 'water');
+        activeDissolveBursts.push(burst);
+      }
+    } else {
+      waterOnExit = false;
+    }
   }
 
   // Track current level; reset poses on level change so the new start
@@ -674,6 +782,9 @@ network.onStateChange = (state: GameState) => {
     // Reset alive trackers on level change
     lastFireAlive = true;
     lastWaterAlive = true;
+    fireOnExit = false;
+    waterOnExit = false;
+    if (gameMode === 'local') showControlsOverlay();
   } else if (state.levelId) {
     currentLevelId = state.levelId;
   }
@@ -696,7 +807,7 @@ network.onStateChange = (state: GameState) => {
   }
   if (hudFallOffToggle && state.settings) {
     hudFallOffToggle.textContent = state.settings.fallOffEdge ? 'ON' : 'OFF';
-    hudFallOffToggle.style.color = state.settings.fallOffEdge ? '#4caf50' : '#ff4444';
+    hudFallOffToggle.style.color = state.settings.fallOffEdge ? 'var(--success)' : 'var(--error)';
   }
   // Update level complete moves
   if (lcMovesValue) {
@@ -720,6 +831,35 @@ renderer.startLoop(() => {
   // Update particle effects on blocks
   fireBlock.update(dt, now);
   waterBlock.update(dt, now);
+
+  // Update steam burst effects
+  for (let i = activeSteamBursts.length - 1; i >= 0; i--) {
+    const done = updateSteamBurst(activeSteamBursts[i], dt);
+    if (done) {
+      const group = activeSteamBursts[i];
+      // Dispose sprite materials
+      group.traverse((child) => {
+        if (child instanceof THREE.Sprite) {
+          child.material.dispose();
+        }
+      });
+      renderer.scene.remove(group);
+      activeSteamBursts.splice(i, 1);
+    }
+  }
+
+  // Update dissolve burst effects
+  for (let i = activeDissolveBursts.length - 1; i >= 0; i--) {
+    const done = updateDissolveBurst(activeDissolveBursts[i], dt);
+    if (done) {
+      const group = activeDissolveBursts[i];
+      group.traverse((child) => {
+        if (child instanceof THREE.Sprite) child.material.dispose();
+      });
+      renderer.scene.remove(group);
+      activeDissolveBursts.splice(i, 1);
+    }
+  }
 
   // Update tile visual effects (lava pulse, water shimmer)
   gridMesh.update(now);
