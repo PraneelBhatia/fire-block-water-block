@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.DS_Store
+*.png
+*.jpeg
+debug-images
+reference
+stitch
+.playwright-mcp
+.superpowers
+scripts
