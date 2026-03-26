@@ -51,20 +51,15 @@ function buildModeSelect() {
   const titleRow = document.createElement('div');
   titleRow.className = 'lobby-title-row';
 
-  const titleFire = document.createElement('span');
-  titleFire.className = 'title-fire';
-  titleFire.textContent = 'FIRE BLOCK';
-  titleRow.appendChild(titleFire);
+  const titleBlox = document.createElement('span');
+  titleBlox.className = 'title-fire';
+  titleBlox.textContent = 'BLOX';
+  titleRow.appendChild(titleBlox);
 
-  const titleAmp = document.createElement('span');
-  titleAmp.className = 'title-amp';
-  titleAmp.textContent = '&';
-  titleRow.appendChild(titleAmp);
-
-  const titleWater = document.createElement('span');
-  titleWater.className = 'title-water';
-  titleWater.textContent = 'WATER BLOCK';
-  titleRow.appendChild(titleWater);
+  const titleWarz = document.createElement('span');
+  titleWarz.className = 'title-water';
+  titleWarz.textContent = 'WARZ';
+  titleRow.appendChild(titleWarz);
 
   container.appendChild(titleRow);
 
@@ -124,20 +119,15 @@ function buildOnlineLobby() {
   const titleRow = document.createElement('div');
   titleRow.className = 'lobby-title-row';
 
-  const titleFire = document.createElement('span');
-  titleFire.className = 'title-fire';
-  titleFire.textContent = 'FIRE BLOCK';
-  titleRow.appendChild(titleFire);
+  const titleBlox2 = document.createElement('span');
+  titleBlox2.className = 'title-fire';
+  titleBlox2.textContent = 'BLOX';
+  titleRow.appendChild(titleBlox2);
 
-  const titleAmp = document.createElement('span');
-  titleAmp.className = 'title-amp';
-  titleAmp.textContent = '&';
-  titleRow.appendChild(titleAmp);
-
-  const titleWater = document.createElement('span');
-  titleWater.className = 'title-water';
-  titleWater.textContent = 'WATER BLOCK';
-  titleRow.appendChild(titleWater);
+  const titleWarz2 = document.createElement('span');
+  titleWarz2.className = 'title-water';
+  titleWarz2.textContent = 'WARZ';
+  titleRow.appendChild(titleWarz2);
 
   container.appendChild(titleRow);
 

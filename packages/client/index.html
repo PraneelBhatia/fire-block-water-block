@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Fire Block &amp; Water Block</title>
+  <title>BloxWarz</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -194,9 +194,9 @@
     }
     /* Floating orbs removed — using background image instead */
 
-    /* Title — Stacked layout */
+    /* Title — Side by side */
     .lobby-title-row {
-      display: flex; flex-direction: column; align-items: center;
+      display: flex; flex-direction: row; align-items: baseline; gap: 0.15em;
       margin-bottom: 8px;
       animation: fadeInUp 0.7s var(--ease-smooth);
       position: relative;
@@ -210,14 +210,7 @@
       text-shadow: 0 2px 0 #c43e00, 0 0 20px var(--fire-glow);
       text-transform: uppercase;
     }
-    .title-amp {
-      font-family: var(--font-body);
-      font-weight: 700; font-size: 0.75rem;
-      color: var(--on-surface-variant);
-      margin: 2px 0;
-      letter-spacing: 8px;
-      text-transform: uppercase;
-    }
+    /* title-amp removed — single-line BloxWarz title */
     .title-water {
       font-family: var(--font-display);
       font-weight: 700; font-size: clamp(1.6rem, 5vw, 2.8rem);
